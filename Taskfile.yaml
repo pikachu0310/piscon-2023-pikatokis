@@ -43,12 +43,12 @@ tasks:
       - less $(ls ~/isucari/log/access.log* | tail -n 1)
 
   profile-pprof:
-    desc: "run pprof 30s"
+    # desc: "run pprof 30s"
     cmds:
       - go tool pprof http://localhost:6060/debug/pprof/profile?seconds=30
 
   profile-fgprof:
-    desc: "run fgprof 30s"
+    # desc: "run fgprof 30s"
     cmds:
       - go tool pprof http://localhost:6060/debug/fgprof/profile?seconds=30
 
@@ -59,12 +59,12 @@ tasks:
       - profile-fgprof
 
   view-pprof:
-    desc: "view pprof profile localhost:6070"
+    # desc: "view pprof profile localhost:6070"
     cmds:
       - go tool pprof -http=localhost:6070 $(ls ~/pprof/pprof.isucari.samples.cpu.* | tail -n 1)
 
   view-fgprof:
-    desc: "view fgprof profile localhost:6070"
+    # desc: "view fgprof profile localhost:6070"
     cmds:
       - go tool pprof -http=localhost:6071 $(ls ~/pprof/pprof.samples.time.* | tail -n 1)
 
