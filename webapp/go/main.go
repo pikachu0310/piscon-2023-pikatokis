@@ -1022,7 +1022,8 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 		if itemDetails[i].TransactionEvidenceID > 0 {
 			eg.Go(func() error {
 				shipping := Shipping{}
-				err = tx.Get(&shipping, "SELECT * FROM `shippings` WHERE `transaction_evidence_id` = ?", itemDetails[i].TransactionEvidenceID)
+				// tx does not work?
+				err = dbx.Get(&shipping, "SELECT * FROM `shippings` WHERE `transaction_evidence_id` = ?", itemDetails[i].TransactionEvidenceID)
 				if err == sql.ErrNoRows {
 					return err
 				}
