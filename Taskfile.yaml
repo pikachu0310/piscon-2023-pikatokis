@@ -50,7 +50,7 @@ tasks:
   run-fgprof:
     desc: "run fgprof 30s"
     cmds:
-      - go tool pprof http://localhost:6060/debug/fgrof/profile?seconds=30
+      - go tool pprof http://localhost:6060/debug/fgprof/profile?seconds=30
 
   view-pprof:
     desc: "read pprof profile localhost:6070"
