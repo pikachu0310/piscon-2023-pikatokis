@@ -43,14 +43,14 @@ tasks:
       - less $(ls ~/isucari/log/access.log* | tail -n 1)
 
   run-pprof:
-    desc: "run pprof 60s"
+    desc: "run pprof 30s"
     cmds:
-      - go tool pprof http://localhost:6060/debug/pprof/profile?seconds=60
+      - go tool pprof http://localhost:6060/debug/pprof/profile?seconds=30
 
   run-fgprof:
-    desc: "run fgprof 60s"
+    desc: "run fgprof 30s"
     cmds:
-      - go tool pprof http://localhost:6060/debug/fgrof/profile?seconds=20
+      - go tool pprof http://localhost:6060/debug/fgrof/profile?seconds=30
 
   read-pprof:
     desc: "read pprof profile localhost:6070"
