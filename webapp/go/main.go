@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	crand "crypto/rand"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"github.com/felixge/fgprof"
+	"github.com/motoki317/sc"
 	"golang.org/x/sync/errgroup"
 	"html/template"
 	"io/ioutil"
@@ -283,6 +285,8 @@ func init() {
 	))
 }
 
+var userCache *sc.Cache[int64, *User]
+
 func main() {
 	http.DefaultServeMux.Handle("/debug/fgprof/profile", fgprof.Handler())
 	go func() {
@@ -334,7 +338,17 @@ func main() {
 
 	mux := goji.NewMux()
 
+	// setup cache
 	updateCategoryCache()
+	userCache = sc.NewMust(func(ctx context.Context, userID int64) (*User, error) {
+		var user User
+		err := dbx.Get(&user, "SELECT * FROM `users` WHERE `id` = ?", userID)
+		if err != nil {
+			return nil, err
+		}
+		return &user, nil
+	}, 2*time.Minute, 2*time.Minute)
+
 	// API
 	mux.HandleFunc(pat.Post("/initialize"), postInitialize)
 	mux.HandleFunc(pat.Get("/new_items.json"), getNewItems)
@@ -390,26 +404,41 @@ func getCSRFToken(r *http.Request) string {
 	return csrfToken.(string)
 }
 
-func getUser(r *http.Request) (user User, errCode int, errMsg string) {
+func getUser(userID int64) (*User, error) {
+	return userCache.Get(context.Background(), userID)
+}
+
+func getUserFromReq(r *http.Request) (User, int, string) {
 	session := getSession(r)
 	userID, ok := session.Values["user_id"]
 	if !ok {
-		return user, http.StatusNotFound, "no session"
+		return User{}, http.StatusNotFound, "no session"
 	}
 
-	err := dbx.Get(&user, "SELECT * FROM `users` WHERE `id` = ?", userID)
+	user, err := getUser(userID.(int64))
 	if err == sql.ErrNoRows {
-		return user, http.StatusNotFound, "user not found"
+		return User{}, http.StatusNotFound, "user not found"
 	}
 	if err != nil {
 		log.Print(err)
-		return user, http.StatusInternalServerError, "db error"
+		return User{}, http.StatusInternalServerError, "db error"
 	}
 
-	return user, http.StatusOK, ""
+	return *user, http.StatusOK, ""
 }
 
-func getUserSimpleByID(q sqlx.Queryer, userID int64) (userSimple UserSimple, err error) {
+func getUserSimpleByID(userID int64) (userSimple UserSimple, err error) {
+	user, err := getUser(userID)
+	if err != nil {
+		return userSimple, err
+	}
+	userSimple.ID = user.ID
+	userSimple.AccountName = user.AccountName
+	userSimple.NumSellItems = user.NumSellItems
+	return userSimple, err
+}
+
+func getUserSimpleByIDTx(q sqlx.Queryer, userID int64) (userSimple UserSimple, err error) {
 	user := User{}
 	err = sqlx.Get(q, &user, "SELECT * FROM `users` WHERE `id` = ?", userID)
 	if err != nil {
@@ -596,7 +625,7 @@ func getNewItems(w http.ResponseWriter, r *http.Request) {
 
 	itemSimples := []ItemSimple{}
 	for _, item := range items {
-		seller, err := getUserSimpleByID(dbx, item.SellerID)
+		seller, err := getUserSimpleByID(item.SellerID)
 		if err != nil {
 			outputErrorMsg(w, http.StatusNotFound, "seller not found")
 			return
@@ -728,7 +757,7 @@ func getNewCategoryItems(w http.ResponseWriter, r *http.Request) {
 
 	itemSimples := []ItemSimple{}
 	for _, item := range items {
-		seller, err := getUserSimpleByID(dbx, item.SellerID)
+		seller, err := getUserSimpleByID(item.SellerID)
 		if err != nil {
 			outputErrorMsg(w, http.StatusNotFound, "seller not found")
 			return
@@ -778,7 +807,7 @@ func getUserItems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userSimple, err := getUserSimpleByID(dbx, userID)
+	userSimple, err := getUserSimpleByID(userID)
 	if err != nil {
 		outputErrorMsg(w, http.StatusNotFound, "user not found")
 		return
@@ -880,7 +909,7 @@ func getUserItems(w http.ResponseWriter, r *http.Request) {
 
 func getTransactions(w http.ResponseWriter, r *http.Request) {
 
-	user, errCode, errMsg := getUser(r)
+	user, errCode, errMsg := getUserFromReq(r)
 	if errMsg != "" {
 		outputErrorMsg(w, errCode, errMsg)
 		return
@@ -955,7 +984,7 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 
 	itemDetails := []ItemDetail{}
 	for _, item := range items {
-		seller, err := getUserSimpleByID(tx, item.SellerID)
+		seller, err := getUserSimpleByIDTx(tx, item.SellerID)
 		if err != nil {
 			outputErrorMsg(w, http.StatusNotFound, "seller not found")
 			tx.Rollback()
@@ -988,7 +1017,7 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if item.BuyerID != 0 {
-			buyer, err := getUserSimpleByID(tx, item.BuyerID)
+			buyer, err := getUserSimpleByIDTx(tx, item.BuyerID)
 			if err != nil {
 				outputErrorMsg(w, http.StatusNotFound, "buyer not found")
 				tx.Rollback()
@@ -1081,7 +1110,7 @@ func getItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, errCode, errMsg := getUser(r)
+	user, errCode, errMsg := getUserFromReq(r)
 	if errMsg != "" {
 		outputErrorMsg(w, errCode, errMsg)
 		return
@@ -1105,7 +1134,7 @@ func getItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	seller, err := getUserSimpleByID(dbx, item.SellerID)
+	seller, err := getUserSimpleByID(item.SellerID)
 	if err != nil {
 		outputErrorMsg(w, http.StatusNotFound, "seller not found")
 		return
@@ -1131,7 +1160,7 @@ func getItem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if (user.ID == item.SellerID || user.ID == item.BuyerID) && item.BuyerID != 0 {
-		buyer, err := getUserSimpleByID(dbx, item.BuyerID)
+		buyer, err := getUserSimpleByID(item.BuyerID)
 		if err != nil {
 			outputErrorMsg(w, http.StatusNotFound, "buyer not found")
 			return
@@ -1194,7 +1223,7 @@ func postItemEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	seller, errCode, errMsg := getUser(r)
+	seller, errCode, errMsg := getUserFromReq(r)
 	if errMsg != "" {
 		outputErrorMsg(w, errCode, errMsg)
 		return
@@ -1274,7 +1303,7 @@ func getQRCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	seller, errCode, errMsg := getUser(r)
+	seller, errCode, errMsg := getUserFromReq(r)
 	if errMsg != "" {
 		outputErrorMsg(w, errCode, errMsg)
 		return
@@ -1337,7 +1366,7 @@ func postBuy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	buyer, errCode, errMsg := getUser(r)
+	buyer, errCode, errMsg := getUserFromReq(r)
 	if errMsg != "" {
 		outputErrorMsg(w, errCode, errMsg)
 		return
@@ -1529,7 +1558,7 @@ func postShip(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	seller, errCode, errMsg := getUser(r)
+	seller, errCode, errMsg := getUserFromReq(r)
 	if errMsg != "" {
 		outputErrorMsg(w, errCode, errMsg)
 		return
@@ -1660,7 +1689,7 @@ func postShipDone(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	seller, errCode, errMsg := getUser(r)
+	seller, errCode, errMsg := getUserFromReq(r)
 	if errMsg != "" {
 		outputErrorMsg(w, errCode, errMsg)
 		return
@@ -1806,7 +1835,7 @@ func postComplete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	buyer, errCode, errMsg := getUser(r)
+	buyer, errCode, errMsg := getUserFromReq(r)
 	if errMsg != "" {
 		outputErrorMsg(w, errCode, errMsg)
 		return
@@ -1992,7 +2021,7 @@ func postSell(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, errCode, errMsg := getUser(r)
+	user, errCode, errMsg := getUserFromReq(r)
 	if errMsg != "" {
 		outputErrorMsg(w, errCode, errMsg)
 		return
@@ -2078,6 +2107,8 @@ func postSell(w http.ResponseWriter, r *http.Request) {
 	}
 	tx.Commit()
 
+	userCache.Forget(seller.ID)
+
 	w.Header().Set("Content-Type", "application/json;charset=utf-8")
 	json.NewEncoder(w).Encode(resSell{ID: itemID})
 }
@@ -2106,7 +2137,7 @@ func postBump(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, errCode, errMsg := getUser(r)
+	user, errCode, errMsg := getUserFromReq(r)
 	if errMsg != "" {
 		outputErrorMsg(w, errCode, errMsg)
 		return
@@ -2187,6 +2218,8 @@ func postBump(w http.ResponseWriter, r *http.Request) {
 
 	tx.Commit()
 
+	userCache.Forget(seller.ID)
+
 	w.Header().Set("Content-Type", "application/json;charset=utf-8")
 	json.NewEncoder(w).Encode(&resItemEdit{
 		ItemID:        targetItem.ID,
@@ -2199,7 +2232,7 @@ func postBump(w http.ResponseWriter, r *http.Request) {
 func getSettings(w http.ResponseWriter, r *http.Request) {
 	csrfToken := getCSRFToken(r)
 
-	user, _, errMsg := getUser(r)
+	user, _, errMsg := getUserFromReq(r)
 
 	ress := resSetting{}
 	ress.CSRFToken = csrfToken
