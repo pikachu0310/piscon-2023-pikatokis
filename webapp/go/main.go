@@ -1351,6 +1351,8 @@ func getQRCode(w http.ResponseWriter, r *http.Request) {
 	w.Write(shipping.ImgBinary)
 }
 
+var postBuyLock = NewMutex[int64]()
+
 func postBuy(w http.ResponseWriter, r *http.Request) {
 	rb := reqBuy{}
 
@@ -1376,6 +1378,9 @@ func postBuy(w http.ResponseWriter, r *http.Request) {
 
 	targetItem := Item{}
 	log.Printf("postBuy: try acqurie item lock id = %v by user id = %v\n", rb.ItemID, buyer.ID)
+	postBuyLock.Lock(buyer.ID)
+	defer postBuyLock.Unlock(buyer.ID)
+
 	err = tx.Get(&targetItem, "SELECT * FROM `items` WHERE `id` = ? FOR UPDATE", rb.ItemID)
 	if err == sql.ErrNoRows {
 		outputErrorMsg(w, http.StatusNotFound, "item not found")
