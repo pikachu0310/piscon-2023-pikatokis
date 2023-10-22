@@ -1381,8 +1381,6 @@ func postBuy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tx := dbx.MustBegin()
-
 	targetItem := Item{}
 	log.Printf("postBuy: try acqurie item lock id = %v by user id = %v\n", rb.ItemID, buyer.ID)
 	postBuyLock.Lock(rb.ItemID)
@@ -1392,10 +1390,10 @@ func postBuy(w http.ResponseWriter, r *http.Request) {
 	_, ok := itemIsTrading.Load(rb.ItemID)
 	if ok {
 		outputErrorMsg(w, http.StatusForbidden, "item is not for sale")
-		tx.Rollback()
 		return
 	}
 
+	tx := dbx.MustBegin()
 	err = tx.Get(&targetItem, "SELECT * FROM `items` WHERE `id` = ? FOR UPDATE", rb.ItemID)
 	if err == sql.ErrNoRows {
 		outputErrorMsg(w, http.StatusNotFound, "item not found")
@@ -1422,11 +1420,36 @@ func postBuy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Optimistic status update for new items list
+	_, err = dbx.Exec("UPDATE `items` SET `buyer_id` = ?, `status` = ?, `updated_at` = ? WHERE `id` = ?",
+		buyer.ID,
+		ItemStatusTrading,
+		time.Now(),
+		targetItem.ID,
+	)
+	if err != nil {
+		log.Print(err)
+		outputErrorMsg(w, http.StatusInternalServerError, "db error")
+		return
+	}
+	rollbackItemStatus := func() {
+		_, err = dbx.Exec("UPDATE `items` SET `buyer_id` = ?, `status` = ?, `updated_at` = ? WHERE `id` = ?",
+			0,
+			ItemStatusOnSale,
+			targetItem.UpdatedAt,
+			targetItem.ID,
+		)
+		if err != nil {
+			log.Print(err)
+		}
+	}
+
 	seller := User{}
 	err = tx.Get(&seller, "SELECT * FROM `users` WHERE `id` = ? FOR UPDATE", targetItem.SellerID)
 	if err == sql.ErrNoRows {
 		outputErrorMsg(w, http.StatusNotFound, "seller not found")
 		tx.Rollback()
+		rollbackItemStatus()
 		return
 	}
 	if err != nil {
@@ -1434,6 +1457,7 @@ func postBuy(w http.ResponseWriter, r *http.Request) {
 
 		outputErrorMsg(w, http.StatusInternalServerError, "db error")
 		tx.Rollback()
+		rollbackItemStatus()
 		return
 	}
 
@@ -1443,6 +1467,7 @@ func postBuy(w http.ResponseWriter, r *http.Request) {
 
 		outputErrorMsg(w, http.StatusInternalServerError, "category id error")
 		tx.Rollback()
+		rollbackItemStatus()
 		return
 	}
 
@@ -1462,6 +1487,7 @@ func postBuy(w http.ResponseWriter, r *http.Request) {
 
 		outputErrorMsg(w, http.StatusInternalServerError, "db error")
 		tx.Rollback()
+		rollbackItemStatus()
 		return
 	}
 
@@ -1471,22 +1497,24 @@ func postBuy(w http.ResponseWriter, r *http.Request) {
 
 		outputErrorMsg(w, http.StatusInternalServerError, "db error")
 		tx.Rollback()
+		rollbackItemStatus()
 		return
 	}
 
-	_, err = tx.Exec("UPDATE `items` SET `buyer_id` = ?, `status` = ?, `updated_at` = ? WHERE `id` = ?",
-		buyer.ID,
-		ItemStatusTrading,
-		time.Now(),
-		targetItem.ID,
-	)
-	if err != nil {
-		log.Print(err)
-
-		outputErrorMsg(w, http.StatusInternalServerError, "db error")
-		tx.Rollback()
-		return
-	}
+	//_, err = tx.Exec("UPDATE `items` SET `buyer_id` = ?, `status` = ?, `updated_at` = ? WHERE `id` = ?",
+	//	buyer.ID,
+	//	ItemStatusTrading,
+	//	time.Now(),
+	//	targetItem.ID,
+	//)
+	//if err != nil {
+	//	log.Print(err)
+	//
+	//	outputErrorMsg(w, http.StatusInternalServerError, "db error")
+	//	tx.Rollback()
+	//	rollbackItemStatus()
+	//	return
+	//}
 
 	var eg errgroup.Group
 
@@ -1526,24 +1554,28 @@ func postBuy(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		outputErrorMsg(w, http.StatusInternalServerError, "payment service or shipment service is failed")
 		tx.Rollback()
+		rollbackItemStatus()
 		return
 	}
 
 	if pstr.Status == "invalid" {
 		outputErrorMsg(w, http.StatusBadRequest, "カード情報に誤りがあります")
 		tx.Rollback()
+		rollbackItemStatus()
 		return
 	}
 
 	if pstr.Status == "fail" {
 		outputErrorMsg(w, http.StatusBadRequest, "カードの残高が足りません")
 		tx.Rollback()
+		rollbackItemStatus()
 		return
 	}
 
 	if pstr.Status != "ok" {
 		outputErrorMsg(w, http.StatusBadRequest, "想定外のエラー")
 		tx.Rollback()
+		rollbackItemStatus()
 		return
 	}
 
@@ -1565,6 +1597,7 @@ func postBuy(w http.ResponseWriter, r *http.Request) {
 
 		outputErrorMsg(w, http.StatusInternalServerError, "db error")
 		tx.Rollback()
+		rollbackItemStatus()
 		return
 	}
 
