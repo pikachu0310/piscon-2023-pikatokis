@@ -10,6 +10,7 @@ require (
 	github.com/gorilla/sessions v1.2.0
 	github.com/jmoiron/sqlx v1.2.0
 	github.com/motoki317/sc v1.6.0
+	github.com/samber/lo v1.38.1
 	goji.io v2.0.2+incompatible
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
@@ -18,5 +19,6 @@ require (
 require (
 	github.com/google/pprof v0.0.0-20211214055906-6f57359322fd // indirect
 	github.com/gorilla/securecookie v1.1.1 // indirect
+	golang.org/x/exp v0.0.0-20220303212507-bbda1eaf7a17 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 )
