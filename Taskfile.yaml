@@ -17,14 +17,14 @@ tasks:
       # rotate log
       - sudo rm -f /var/log/mysql/mysql-slow.log
       - sudo rm -f /var/log/nginx/access.log
-      # build app
-      - cd ~/isucari && git pull
-      - cd ~/isucari/webapp/go && make isucari
-      - sudo systemctl restart isucari.golang.service
       # restart mysql / nginx
       - sudo systemctl restart mysql
       - sudo nginx -t
       - sudo systemctl reload nginx
+      # build app
+      - cd ~/isucari && git pull
+      - cd ~/isucari/webapp/go && make isucari
+      - sudo systemctl restart isucari.golang.service
 
   analyze:
     desc: "analyze mysql / nginx log"
