@@ -1387,6 +1387,8 @@ func postBuy(w http.ResponseWriter, r *http.Request) {
 	log.Printf("postBuy: try acqurie item lock id = %v by user id = %v\n", rb.ItemID, buyer.ID)
 	postBuyLock.Lock(rb.ItemID)
 	defer postBuyLock.Unlock(rb.ItemID)
+	log.Printf("postBuy: acquried item lock id = %v by user id = %v\n", rb.ItemID, buyer.ID)
+
 	_, ok := itemIsTrading.Load(rb.ItemID)
 	if ok {
 		outputErrorMsg(w, http.StatusForbidden, "item is not for sale")
@@ -1407,7 +1409,6 @@ func postBuy(w http.ResponseWriter, r *http.Request) {
 		tx.Rollback()
 		return
 	}
-	log.Printf("postBuy: acquried item lock id = %v by user id = %v\n", rb.ItemID, buyer.ID)
 
 	if targetItem.Status != ItemStatusOnSale {
 		outputErrorMsg(w, http.StatusForbidden, "item is not for sale")
