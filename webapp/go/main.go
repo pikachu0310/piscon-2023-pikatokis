@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"github.com/felixge/fgprof"
 	"github.com/motoki317/sc"
-	"github.com/samber/lo"
 	"golang.org/x/sync/errgroup"
 	"html/template"
 	"io/ioutil"
@@ -656,9 +655,6 @@ func getNewItems(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	// 新着一覧については、上記の制限を満たした上でよりユーザにあわせた商品の一覧を返すことで、購入の機会を増やすことができます。
-	lo.Shuffle(itemSimples)
-
 	hasNext := false
 	if len(itemSimples) > ItemsPerPage {
 		hasNext = true
@@ -790,9 +786,6 @@ func getNewCategoryItems(w http.ResponseWriter, r *http.Request) {
 			CreatedAt:  item.CreatedAt.Unix(),
 		})
 	}
-
-	// 新着一覧については、上記の制限を満たした上でよりユーザにあわせた商品の一覧を返すことで、購入の機会を増やすことができます。
-	lo.Shuffle(itemSimples)
 
 	hasNext := false
 	if len(itemSimples) > ItemsPerPage {
