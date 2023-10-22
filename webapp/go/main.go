@@ -1467,30 +1467,43 @@ func postBuy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	scr, err := APIShipmentCreate(getShipmentServiceURL(), &APIShipmentCreateReq{
-		ToAddress:   buyer.Address,
-		ToName:      buyer.AccountName,
-		FromAddress: seller.Address,
-		FromName:    seller.AccountName,
+	var eg errgroup.Group
+
+	var scr *APIShipmentCreateRes
+	eg.Go(func() error {
+		var err1 error
+		scr, err1 = APIShipmentCreate(getShipmentServiceURL(), &APIShipmentCreateReq{
+			ToAddress:   buyer.Address,
+			ToName:      buyer.AccountName,
+			FromAddress: seller.Address,
+			FromName:    seller.AccountName,
+		})
+		if err1 != nil {
+			log.Print(err1)
+			return err1
+		}
+		return nil
 	})
-	if err != nil {
-		log.Print(err)
-		outputErrorMsg(w, http.StatusInternalServerError, "failed to request to shipment service")
-		tx.Rollback()
 
-		return
-	}
-
-	pstr, err := APIPaymentToken(getPaymentServiceURL(), &APIPaymentServiceTokenReq{
-		ShopID: PaymentServiceIsucariShopID,
-		Token:  rb.Token,
-		APIKey: PaymentServiceIsucariAPIKey,
-		Price:  targetItem.Price,
+	var pstr *APIPaymentServiceTokenRes
+	eg.Go(func() error {
+		var err1 error
+		pstr, err1 = APIPaymentToken(getPaymentServiceURL(), &APIPaymentServiceTokenReq{
+			ShopID: PaymentServiceIsucariShopID,
+			Token:  rb.Token,
+			APIKey: PaymentServiceIsucariAPIKey,
+			Price:  targetItem.Price,
+		})
+		if err1 != nil {
+			log.Print(err1)
+			return err1
+		}
+		return nil
 	})
-	if err != nil {
-		log.Print(err)
 
-		outputErrorMsg(w, http.StatusInternalServerError, "payment service is failed")
+	err = eg.Wait()
+	if err != nil {
+		outputErrorMsg(w, http.StatusInternalServerError, "payment service or shipment service is failed")
 		tx.Rollback()
 		return
 	}
