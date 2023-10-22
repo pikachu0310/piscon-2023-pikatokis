@@ -1,3 +1,3 @@
-sudo cp s1/etc/mysql/mysql.conf.d /etc/mysql/mysql.conf.d/mysqld.cnf
-sudo cp s1/etc/nginx /etc/nginx/nginx.conf
-sudo cp s1/etc/nginx/sites-available /etc/nginx/sites-available/isucari.conf
+sudo cp s1/etc/mysql/mysql.conf.d/mysqld.cnf /etc/mysql/mysql.conf.d/mysqld.cnf
+sudo cp s1/etc/nginx/nginx.conf /etc/nginx/nginx.conf
+sudo cp s1/etc/nginx/sites-available/isucari.conf /etc/nginx/sites-available/isucari.conf
