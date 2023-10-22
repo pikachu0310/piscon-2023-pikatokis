@@ -321,6 +321,7 @@ func main() {
 
 	mux := goji.NewMux()
 
+	updateCategoryCache()
 	// API
 	mux.HandleFunc(pat.Post("/initialize"), postInitialize)
 	mux.HandleFunc(pat.Get("/new_items.json"), getNewItems)
@@ -408,14 +409,15 @@ func getUserSimpleByID(q sqlx.Queryer, userID int64) (userSimple UserSimple, err
 }
 
 func getCategoryByID(q sqlx.Queryer, categoryID int) (category Category, err error) {
-	err = sqlx.Get(q, &category, "SELECT * FROM `categories` WHERE `id` = ?", categoryID)
-	if category.ParentID != 0 {
-		parentCategory, err := getCategoryByID(q, category.ParentID)
-		if err != nil {
-			return category, err
-		}
-		category.ParentCategoryName = parentCategory.CategoryName
-	}
+	category = categoriesById[categoryID]
+	//err = sqlx.Get(q, &category, "SELECT * FROM `categories` WHERE `id` = ?", categoryID)
+	//if category.ParentID != 0 {
+	//	parentCategory, err := getCategoryByID(q, category.ParentID)
+	//	if err != nil {
+	//		return category, err
+	//	}
+	//	category.ParentCategoryName = parentCategory.CategoryName
+	//}
 	return category, err
 }
 
@@ -450,6 +452,28 @@ func getShipmentServiceURL() string {
 
 func getIndex(w http.ResponseWriter, r *http.Request) {
 	templates.ExecuteTemplate(w, "index.html", struct{}{})
+}
+
+var categoriesCache []Category
+var categoriesById map[int]Category
+var categoriesByParentId map[int][]Category
+
+func updateCategoryCache() {
+	categoriesCache = []Category{}
+	err := dbx.Select(&categoriesCache, "SELECT * FROM `categories`")
+	if err != nil {
+		log.Print(err)
+		return
+	}
+	categoriesById = make(map[int]Category)
+	for _, category := range categoriesCache {
+		categoriesById[category.ID] = category
+	}
+
+	categoriesByParentId = make(map[int][]Category)
+	for _, category := range categoriesCache {
+		categoriesByParentId[category.ParentID] = append(categoriesByParentId[category.ParentID], category)
+	}
 }
 
 func postInitialize(w http.ResponseWriter, r *http.Request) {
@@ -497,7 +521,7 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 		// 実装言語を返す
 		Language: "Go",
 	}
-
+	updateCategoryCache()
 	w.Header().Set("Content-Type", "application/json;charset=utf-8")
 	json.NewEncoder(w).Encode(res)
 }
@@ -613,12 +637,16 @@ func getNewCategoryItems(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var categoryIDs []int
-	err = dbx.Select(&categoryIDs, "SELECT id FROM `categories` WHERE parent_id=?", rootCategory.ID)
-	if err != nil {
-		log.Print(err)
-		outputErrorMsg(w, http.StatusInternalServerError, "db error")
-		return
+	for _, category := range categoriesByParentId[rootCategoryID] {
+		categoryIDs = append(categoryIDs, category.ID)
 	}
+
+	//err = dbx.Select(&categoryIDs, "SELECT id FROM `categories` WHERE parent_id=?", rootCategory.ID)
+	//if err != nil {
+	//	log.Print(err)
+	//	outputErrorMsg(w, http.StatusInternalServerError, "db error")
+	//	return
+	//}
 
 	query := r.URL.Query()
 	itemIDStr := query.Get("item_id")
@@ -2152,14 +2180,14 @@ func getSettings(w http.ResponseWriter, r *http.Request) {
 
 	ress.PaymentServiceURL = getPaymentServiceURL()
 
-	categories := []Category{}
-
-	err := dbx.Select(&categories, "SELECT * FROM `categories`")
-	if err != nil {
-		log.Print(err)
-		outputErrorMsg(w, http.StatusInternalServerError, "db error")
-		return
-	}
+	categories := categoriesCache
+	//categories := []Category{}
+	//err := dbx.Select(&categories, "SELECT * FROM `categories`")
+	//if err != nil {
+	//	log.Print(err)
+	//	outputErrorMsg(w, http.StatusInternalServerError, "db error")
+	//	return
+	//}
 	ress.Categories = categories
 
 	w.Header().Set("Content-Type", "application/json;charset=utf-8")
