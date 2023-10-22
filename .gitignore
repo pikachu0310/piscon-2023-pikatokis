@@ -1,0 +1,15 @@
+LICENSE
+Makefile
+bench/
+bin/
+cmd/
+go.mod
+go.sum
+initial-data/
+webapp/frontend/
+webapp/nodejs/
+webapp/perl/
+webapp/php/
+webapp/public/
+webapp/python/
+webapp/ruby/
