@@ -1375,7 +1375,7 @@ func postBuy(w http.ResponseWriter, r *http.Request) {
 	tx := dbx.MustBegin()
 
 	targetItem := Item{}
-	log.Printf("postBuy: try acqurie item lock id = %v\n", rb.ItemID)
+	log.Printf("postBuy: try acqurie item lock id = %v by user id = %v\n", rb.ItemID, buyer.ID)
 	err = tx.Get(&targetItem, "SELECT * FROM `items` WHERE `id` = ? FOR UPDATE", rb.ItemID)
 	if err == sql.ErrNoRows {
 		outputErrorMsg(w, http.StatusNotFound, "item not found")
@@ -1389,7 +1389,7 @@ func postBuy(w http.ResponseWriter, r *http.Request) {
 		tx.Rollback()
 		return
 	}
-	log.Printf("postBuy: acquried item lock id = %v\n", rb.ItemID)
+	log.Printf("postBuy: acquried item lock id = %v by user id = %v\n", rb.ItemID, buyer.ID)
 
 	if targetItem.Status != ItemStatusOnSale {
 		outputErrorMsg(w, http.StatusForbidden, "item is not for sale")
@@ -2107,6 +2107,7 @@ func postSell(w http.ResponseWriter, r *http.Request) {
 		outputErrorMsg(w, http.StatusInternalServerError, "db error")
 		return
 	}
+	log.Printf("postSell: new item on sale id = %v by user id = %v\n", itemID, seller.ID)
 
 	now := time.Now()
 	_, err = tx.Exec("UPDATE `users` SET `num_sell_items`=?, `last_bump`=? WHERE `id`=?",
