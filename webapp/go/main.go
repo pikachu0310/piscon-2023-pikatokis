@@ -17,6 +17,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -563,7 +564,12 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 		// 実装言語を返す
 		Language: "Go",
 	}
+
+	// update cache
 	updateCategoryCache()
+	itemIsTrading = sync.Map{}
+	userCache.Purge()
+
 	w.Header().Set("Content-Type", "application/json;charset=utf-8")
 	json.NewEncoder(w).Encode(res)
 }
@@ -1352,6 +1358,7 @@ func getQRCode(w http.ResponseWriter, r *http.Request) {
 }
 
 var postBuyLock = NewMutex[int64]()
+var itemIsTrading = sync.Map{}
 
 func postBuy(w http.ResponseWriter, r *http.Request) {
 	rb := reqBuy{}
@@ -1378,8 +1385,14 @@ func postBuy(w http.ResponseWriter, r *http.Request) {
 
 	targetItem := Item{}
 	log.Printf("postBuy: try acqurie item lock id = %v by user id = %v\n", rb.ItemID, buyer.ID)
-	postBuyLock.Lock(buyer.ID)
-	defer postBuyLock.Unlock(buyer.ID)
+	postBuyLock.Lock(rb.ItemID)
+	defer postBuyLock.Unlock(rb.ItemID)
+	_, ok := itemIsTrading.Load(rb.ItemID)
+	if ok {
+		outputErrorMsg(w, http.StatusForbidden, "item is not for sale")
+		tx.Rollback()
+		return
+	}
 
 	err = tx.Get(&targetItem, "SELECT * FROM `items` WHERE `id` = ? FOR UPDATE", rb.ItemID)
 	if err == sql.ErrNoRows {
@@ -1556,6 +1569,7 @@ func postBuy(w http.ResponseWriter, r *http.Request) {
 
 	tx.Commit()
 	log.Printf("postBuy: item sold id = %v to user id = %v\n", rb.ItemID, buyer.ID)
+	itemIsTrading.Store(rb.ItemID, true)
 
 	w.Header().Set("Content-Type", "application/json;charset=utf-8")
 	json.NewEncoder(w).Encode(resBuy{TransactionEvidenceID: transactionEvidenceID})
