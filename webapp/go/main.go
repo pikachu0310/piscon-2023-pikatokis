@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/felixge/fgprof"
+	"golang.org/x/sync/errgroup"
 	"html/template"
 	"io/ioutil"
 	"log"
@@ -1008,36 +1009,51 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if transactionEvidence.ID > 0 {
-			shipping := Shipping{}
-			err = tx.Get(&shipping, "SELECT * FROM `shippings` WHERE `transaction_evidence_id` = ?", transactionEvidence.ID)
-			if err == sql.ErrNoRows {
-				outputErrorMsg(w, http.StatusNotFound, "shipping not found")
-				tx.Rollback()
-				return
-			}
-			if err != nil {
-				log.Print(err)
-				outputErrorMsg(w, http.StatusInternalServerError, "db error")
-				tx.Rollback()
-				return
-			}
-			ssr, err := APIShipmentStatus(getShipmentServiceURL(), &APIShipmentStatusReq{
-				ReserveID: shipping.ReserveID,
-			})
-			if err != nil {
-				log.Print(err)
-				outputErrorMsg(w, http.StatusInternalServerError, "failed to request to shipment service")
-				tx.Rollback()
-				return
-			}
-
 			itemDetail.TransactionEvidenceID = transactionEvidence.ID
 			itemDetail.TransactionEvidenceStatus = transactionEvidence.Status
-			itemDetail.ShippingStatus = ssr.Status
 		}
 
 		itemDetails = append(itemDetails, itemDetail)
 	}
+
+	var eg errgroup.Group
+	for i := range itemDetails {
+		i := i
+		if itemDetails[i].TransactionEvidenceID > 0 {
+			eg.Go(func() error {
+				shipping := Shipping{}
+				err = tx.Get(&shipping, "SELECT * FROM `shippings` WHERE `transaction_evidence_id` = ?", itemDetails[i].TransactionEvidenceID)
+				if err == sql.ErrNoRows {
+					return err
+				}
+				if err != nil {
+					return err
+				}
+				ssr, err := APIShipmentStatus(getShipmentServiceURL(), &APIShipmentStatusReq{
+					ReserveID: shipping.ReserveID,
+				})
+				if err != nil {
+					return err
+				}
+				itemDetails[i].ShippingStatus = ssr.Status
+				return nil
+			})
+		}
+	}
+
+	err = eg.Wait()
+	if err == sql.ErrNoRows {
+		outputErrorMsg(w, http.StatusNotFound, "shipping not found")
+		tx.Rollback()
+		return
+	}
+	if err != nil {
+		log.Print(err)
+		outputErrorMsg(w, http.StatusInternalServerError, "db error or failed to request to shipment service")
+		tx.Rollback()
+		return
+	}
+
 	tx.Commit()
 
 	hasNext := false
