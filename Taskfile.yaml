@@ -1,7 +1,8 @@
 version: '3'
 
 tasks:
-  config:
+  apply-config:
+    desc: "apply mysql / nginx config from git"
     cmds:
       - sudo cp s1/etc/mysql/mysql.conf.d/mysqld.cnf /etc/mysql/mysql.conf.d/mysqld.cnf
       - sudo cp s1/etc/nginx/nginx.conf /etc/nginx/nginx.conf
@@ -10,14 +11,33 @@ tasks:
       - sudo systemctl reload nginx
       - sudo systemctl restart mysql
 
-  bench:
+  before-bench:
+    desc: "rotate log / build / restart services"
     cmds:
+      # rotate log
+      - sudo rm -f /var/log/mysql/mysql-slow.log
+      - sudo rm -f /var/log/nginx/access.log
+      # build app
       - cd ~/isucari && git pull
-      - cd ~/isucari/webapp/go && make isucari && sudo systemctl restart isucari.golang.service
+      - cd ~/isucari/webapp/go && make isucari
+      - sudo systemctl restart isucari.golang.service
+      # restart mysql / nginx
       - sudo systemctl restart mysql
-      - sudo nginx -t && sudo systemctl reload nginx
+      - sudo nginx -t
+      - sudo systemctl reload nginx
 
-  log:
+  analyze:
+    desc: "analyze mysql / nginx log"
     cmds:
-      - sudo pt-query-digest --filter 'length($$event->{arg}) <= 4000' /var/log/mysql/mysql-slow.log > ~/isucari/log/$(date +mysql-slow.log-%m-%d-%H-%M -d "+9 hours") && sudo rm /var/log/mysql/mysql-slow.log
-      - sudo cat /var/log/nginx/access.log | alp ltsv -m "/users/\d+.json","/items/\d+.json","/new_items/\d+.json","/upload/.+.jpg","/transactions/\d+.png" --sort sum -r > ~/isucari/log/$(date +access.log-%m-%d-%H-%M -d "+9 hours") && sudo rm /var/log/nginx/access.log
+      - sudo pt-query-digest --filter 'length($$event->{arg}) <= 4000' /var/log/mysql/mysql-slow.log > ~/isucari/log/$(date +mysql-slow.log-%m-%d-%H-%M -d "+9 hours")
+      - sudo cat /var/log/nginx/access.log | alp ltsv -m "/users/\d+.json","/items/\d+.json","/new_items/\d+.json","/upload/.+.jpg","/transactions/\d+.png" --sort sum -r > ~/isucari/log/$(date +access.log-%m-%d-%H-%M -d "+9 hours")
+
+  view-slow:
+    desc: "view latest mysql slow log"
+    cmds:
+      - less $(ls ~/isucari/log/mysql-slow* | tail -n 1)
+
+  view-log:
+    desc: "view latest alp analyzed nginx log"
+    cmds:
+      - less $(ls ~/isucari/log/access.log* | tail -n 1)
