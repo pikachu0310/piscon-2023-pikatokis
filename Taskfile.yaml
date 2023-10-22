@@ -53,6 +53,7 @@ tasks:
       - go tool pprof http://localhost:6060/debug/fgprof/profile?seconds=30
 
   profile:
+    desc: "run pprof / fgprof for 30s"
     deps:
       - profile-pprof
       - profile-fgprof
