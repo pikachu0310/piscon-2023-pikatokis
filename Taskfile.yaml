@@ -52,12 +52,12 @@ tasks:
     cmds:
       - go tool pprof http://localhost:6060/debug/fgrof/profile?seconds=30
 
-  read-pprof:
+  view-pprof:
     desc: "read pprof profile localhost:6070"
     cmds:
       - go tool pprof -http=localhost:6070 $(ls ~/pprof/pprof.isucari.samples.cpu.* | tail -n 1)
 
-  read-fgprof:
+  view-fgprof:
     desc: "read fgprof profile localhost:6070"
     cmds:
       - go tool pprof -http=localhost:6070 $(ls ~/pprof/pprof.samples.time.* | tail -n 1)
