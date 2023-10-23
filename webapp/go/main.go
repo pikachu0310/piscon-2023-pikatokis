@@ -982,7 +982,7 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 
 	itemDetails := []ItemDetail{}
 	for _, item := range items {
-		seller, err := getUserSimpleByIDTx(tx, item.SellerID)
+		seller, err := getUserSimpleByID(item.SellerID)
 		if err != nil {
 			outputErrorMsg(w, http.StatusNotFound, "seller not found")
 			tx.Rollback()
@@ -1015,7 +1015,7 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if item.BuyerID != 0 {
-			buyer, err := getUserSimpleByIDTx(tx, item.BuyerID)
+			buyer, err := getUserSimpleByID(item.BuyerID)
 			if err != nil {
 				outputErrorMsg(w, http.StatusNotFound, "buyer not found")
 				tx.Rollback()
