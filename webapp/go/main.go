@@ -1045,8 +1045,9 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 
 	var eg errgroup.Group
 	for i := range itemDetails {
-		i := i
-		if itemDetails[i].TransactionEvidenceID > 0 {
+		if itemDetails[i].Status == ItemStatusSoldOut {
+			itemDetails[i].ShippingStatus = ShippingsStatusDone
+		} else if itemDetails[i].TransactionEvidenceID > 0 {
 			eg.Go(func() error {
 				shipping := Shipping{}
 				// tx does not work?
