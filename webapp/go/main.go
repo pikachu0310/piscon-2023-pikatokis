@@ -560,7 +560,7 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 
 	res := resInitialize{
 		// キャンペーン実施時には還元率の設定を返す。詳しくはマニュアルを参照のこと。
-		Campaign: 4,
+		Campaign: 2,
 		// 実装言語を返す
 		Language: "Go",
 	}
@@ -569,6 +569,8 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 	updateCategoryCache()
 	itemIsTrading = sync.Map{}
 	userCache.Purge()
+
+	log.Print("initialize and cache updated")
 
 	w.Header().Set("Content-Type", "application/json;charset=utf-8")
 	json.NewEncoder(w).Encode(res)
