@@ -334,8 +334,9 @@ func main() {
 	}
 	defer dbx.Close()
 
-	dbx.SetMaxIdleConns(100)
+	dbx.SetMaxIdleConns(400)
 	//dbx.SetMaxOpenConns(1000)
+	http.DefaultTransport.(*http.Transport).MaxIdleConnsPerHost = 1000
 
 	mux := goji.NewMux()
 
