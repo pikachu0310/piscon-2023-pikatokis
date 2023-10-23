@@ -1060,13 +1060,14 @@ func getTransactions(w http.ResponseWriter, r *http.Request) {
 				if err != nil {
 					return err
 				}
-				ssr, err := APIShipmentStatus(getShipmentServiceURL(), &APIShipmentStatusReq{
-					ReserveID: shipping.ReserveID,
-				})
-				if err != nil {
-					return err
-				}
-				itemDetails[i].ShippingStatus = ssr.Status
+				//ssr, err := APIShipmentStatus(getShipmentServiceURL(), &APIShipmentStatusReq{
+				//	ReserveID: shipping.ReserveID,
+				//})
+				//if err != nil {
+				//	return err
+				//}
+				// getItem doesn't request shipment service
+				itemDetails[i].ShippingStatus = shipping.Status
 				return nil
 			})
 		}
