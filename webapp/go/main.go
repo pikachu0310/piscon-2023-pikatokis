@@ -392,14 +392,14 @@ func main() {
 		// ここからソケット接続設定 ---
 		socket_file := "/var/run/app.sock"
 		os.Remove(socket_file)
-
-		l, err := net.Listen("unix", socket_file)
+		os.Create(socket_file)
+		// go runユーザとnginxのユーザ（グループ）を同じにすれば777じゃなくてok
+		err = os.Chmod(socket_file, 0777)
 		if err != nil {
 			fmt.Println(err)
 		}
 
-		// go runユーザとnginxのユーザ（グループ）を同じにすれば777じゃなくてok
-		err = os.Chmod(socket_file, 0777)
+		l, err := net.Listen("unix", socket_file)
 		if err != nil {
 			fmt.Println(err)
 		}
