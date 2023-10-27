@@ -395,13 +395,13 @@ func main() {
 
 		l, err := net.Listen("unix", socket_file)
 		if err != nil {
-			log.Fatal(err)
+			fmt.Println(err)
 		}
 
 		// go runユーザとnginxのユーザ（グループ）を同じにすれば777じゃなくてok
 		err = os.Chmod(socket_file, 0777)
 		if err != nil {
-			log.Fatal(err)
+			fmt.Println(err)
 		}
 
 		log.Fatal(http.Serve(l, mux))
