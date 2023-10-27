@@ -1380,10 +1380,10 @@ func postBuy(w http.ResponseWriter, r *http.Request) {
 	tx := dbx.MustBegin()
 
 	targetItem := Item{}
-	log.Printf("postBuy: try acqurie item lock id = %v by user id = %v\n", rb.ItemID, buyer.ID)
+	//log.Printf("postBuy: try acqurie item lock id = %v by user id = %v\n", rb.ItemID, buyer.ID)
 	postBuyLock.Lock(rb.ItemID)
 	defer postBuyLock.Unlock(rb.ItemID)
-	log.Printf("postBuy: acquried item lock id = %v by user id = %v\n", rb.ItemID, buyer.ID)
+	//log.Printf("postBuy: acquried item lock id = %v by user id = %v\n", rb.ItemID, buyer.ID)
 
 	_, ok := itemIsTrading.Load(rb.ItemID)
 	if ok {
@@ -1565,7 +1565,7 @@ func postBuy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tx.Commit()
-	log.Printf("postBuy: item sold id = %v to user id = %v\n", rb.ItemID, buyer.ID)
+	//log.Printf("postBuy: item sold id = %v to user id = %v\n", rb.ItemID, buyer.ID)
 	itemIsTrading.Store(rb.ItemID, true)
 
 	w.Header().Set("Content-Type", "application/json;charset=utf-8")
@@ -2124,7 +2124,7 @@ func postSell(w http.ResponseWriter, r *http.Request) {
 		outputErrorMsg(w, http.StatusInternalServerError, "db error")
 		return
 	}
-	log.Printf("postSell: new item on sale id = %v by user id = %v\n", itemID, seller.ID)
+	//log.Printf("postSell: new item on sale id = %v by user id = %v\n", itemID, seller.ID)
 
 	now := time.Now()
 	_, err = tx.Exec("UPDATE `users` SET `num_sell_items`=?, `last_bump`=? WHERE `id`=?",
