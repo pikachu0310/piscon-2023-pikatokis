@@ -12,6 +12,7 @@ import (
 	"html/template"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -386,7 +387,36 @@ func main() {
 	mux.HandleFunc(pat.Get("/users/setting"), getIndex)
 	// Assets
 	mux.Handle(pat.Get("/*"), http.FileServer(http.Dir("../public")))
-	log.Fatal(http.ListenAndServe(":8000", mux))
+
+	if getEnv("USE_SOCKET", "0") == "1" {
+		// ここからソケット接続設定 ---
+		socket_file := "/var/run/app.sock"
+		os.Remove(socket_file)
+
+		l, err := net.Listen("unix", socket_file)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		// go runユーザとnginxのユーザ（グループ）を同じにすれば777じゃなくてok
+		err = os.Chmod(socket_file, 0777)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		log.Fatal(http.Serve(l, mux))
+		// ここまで ---
+	} else {
+		log.Fatal(http.ListenAndServe(":8000", mux))
+	}
+}
+
+func getEnv(key string, defaultValue string) string {
+	val := os.Getenv(key)
+	if val != "" {
+		return val
+	}
+	return defaultValue
 }
 
 func getSession(r *http.Request) *sessions.Session {
