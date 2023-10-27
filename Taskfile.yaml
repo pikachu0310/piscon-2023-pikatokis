@@ -17,6 +17,10 @@ tasks:
       # rotate log
       - sudo rm -f /var/log/mysql/mysql-slow.log
       - sudo rm -f /var/log/nginx/access.log
+      # socket
+      - sudo rm -f /var/run/app.sock
+      - sudo touch /var/run/app.sock
+      - sudo chmod 777 /var/run/app.sock
       # restart mysql / nginx
       - sudo systemctl restart mysql
       - sudo nginx -t
